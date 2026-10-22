@@ -35,7 +35,8 @@
     <string name="shamsi_month_bahman">бахмана</string>
     <string name="shamsi_month_esfand">эсфанда</string>
     <string name="stats_cpu">CPU %1$d%%</string>
-    <string name="stats_memory">Память %1$d / %2$d МБ</string>
+    <string name="stats_memory">Память %1$.1f / %2$.1f ГБ</string>
+    <string name="stats_memory_mb">Память %1$d / %2$d МБ</string>
     <string name="stats_storage">Накопитель %1$s свободно</string>
     <string name="storage_gb_whole">%1$.0f ГБ</string>
     <string name="storage_gb_decimal">%1$.1f ГБ</string>

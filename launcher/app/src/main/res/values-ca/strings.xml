@@ -19,7 +19,8 @@
     <string name="not_available">No disponible en aquest televisor</string>
     <string name="cant_open">No s\'ha pogut obrir %1$s</string>
     <string name="stats_cpu">CPU %1$d%%</string>
-    <string name="stats_memory">Memòria %1$d / %2$d MB</string>
+    <string name="stats_memory">Memòria %1$.1f / %2$.1f GB</string>
+    <string name="stats_memory_mb">Memòria %1$d / %2$d MB</string>
     <string name="stats_storage">Emmagatzematge %1$s lliure</string>
     <string name="dream_name">Rellotge</string>
     <string name="launcher_settings">Configuració del llançador</string>

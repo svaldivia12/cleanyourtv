@@ -189,6 +189,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private TextView raceKicker, raceHeadline, raceSessions;
     /** config.xml show_stats, overridable by a theme. Off: the line is gone and nothing is read. */
     private boolean showStats;
+    /** Stats memory as whole MB (true) or GB with one decimal (false). */
+    private boolean statsMemoryMb;
     private boolean shamsi;
     /** greeting_name: said after the greeting, which is shown in capitals. */
     private String greetingName = "";
@@ -473,6 +475,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         raceHeadline = findViewById(R.id.raceHeadline);
         raceSessions = findViewById(R.id.raceSessions);
         showStats = cfg.showStats;
+        statsMemoryMb = cfg.statsMemoryMb;
         shamsi = cfg.shamsiDate;
         lunarDate = findViewById(R.id.lunarDate);
         lunar = cfg.lunarDate;
@@ -2045,7 +2048,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (!showStats) stats.setVisibility(View.GONE);
     }
 
-    /** One quiet line, e.g. "CPU 8%  ·  Memory 430 MB free  ·  Storage 3.1 GB free". Runs off the main thread. */
+    /** One quiet line, e.g. "CPU 8%  ·  Memory 2.3 / 3.8 GB  ·  Storage 3.1 GB free". Runs off the main thread. */
     private static void appendStat(StringBuilder line, String part) {
         if (line.length() > 0) line.append("  ·  ");
         line.append(part);
@@ -2066,8 +2069,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // showing a dash that never fills in.
         StringBuilder line = new StringBuilder();
         if (cpu >= 0) line.append(getString(R.string.stats_cpu, cpu));
-        long[] mem = memUsedOfTotalMb();
-        if (mem != null) appendStat(line, getString(R.string.stats_memory, mem[0], mem[1]));
+        if (statsMemoryMb) {
+            long[] mem = memUsedOfTotalMb();
+            if (mem != null) appendStat(line, getString(R.string.stats_memory_mb, mem[0], mem[1]));
+        } else {
+            double[] mem = memUsedOfTotalGb();
+            if (mem != null) appendStat(line, getString(R.string.stats_memory, mem[0], mem[1]));
+        }
         String free = formatGb(getResources(), Environment.getDataDirectory().getFreeSpace());
         if (!free.isEmpty()) appendStat(line, getString(R.string.stats_storage, free));
         return StatsText.forLocale(line.toString(), getResources().getConfiguration().getLocales().get(0));
@@ -2154,26 +2162,42 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         return Math.max(0, Math.min(100, busy));
     }
 
-    /** RAM usage as {used, total} in MB, used = MemTotal - MemAvailable, e.g. "945 / 1536 MB". Used over
-     *  free so the line reads as a load against a known whole; null when /proc/meminfo cannot be read. */
+    /** RAM usage as {used, total} in MB, used = MemTotal - MemAvailable, e.g. "945 / 1536 MB". Null when
+     *  /proc/meminfo cannot be read. */
     private long[] memUsedOfTotalMb() {
-        long available = -1, total = -1;
+        long[] kb = memUsedOfTotalKb();
+        if (kb == null) return null;
+        return new long[]{kb[0] / 1024, kb[1] / 1024};
+    }
+
+    /** RAM usage as {used, total} in GB, used = MemTotal - MemAvailable, e.g. "2.3 / 3.8 GB". Null when
+     *  /proc/meminfo cannot be read. */
+    private double[] memUsedOfTotalGb() {
+        long[] kb = memUsedOfTotalKb();
+        if (kb == null) return null;
+        double kbPerGb = 1024.0 * 1024.0;
+        return new double[]{kb[0] / kbPerGb, kb[1] / kbPerGb};
+    }
+
+    /** RAM usage as {used, total} in KiB from /proc/meminfo; null when it cannot be read. */
+    private long[] memUsedOfTotalKb() {
+        long availableKb = -1, totalKb = -1;
         try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader("/proc/meminfo"))) {
             String line;
             String[] t;
             while ((line = r.readLine()) != null) {
                 if (line.startsWith("MemAvailable:")) {
                     t = line.split("\\s+");
-                    if (t.length >= 2) available = Long.parseLong(t[1]) / 1024;
+                    if (t.length >= 2) availableKb = Long.parseLong(t[1]);
                 } else if (line.startsWith("MemTotal:")) {
                     t = line.split("\\s+");
-                    if (t.length >= 2) total = Long.parseLong(t[1]) / 1024;
+                    if (t.length >= 2) totalKb = Long.parseLong(t[1]);
                 }
             }
         } catch (IOException | NumberFormatException ignored) {
         }
-        if (available < 0 || total <= 0) return null;
-        return new long[]{Math.max(0, total - available), total};
+        if (availableKb < 0 || totalKb <= 0) return null;
+        return new long[]{Math.max(0, totalKb - availableKb), totalKb};
     }
 
     private static String readFirstLine(String path) {

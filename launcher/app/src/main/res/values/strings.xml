@@ -36,8 +36,11 @@
     <string name="shamsi_month_bahman">Bahman</string>
     <string name="shamsi_month_esfand">Esfand</string>
     <string name="stats_cpu">CPU %1$d%%</string>
-    <string name="stats_memory">Memory %1$d / %2$d MB</string>
+    <string name="stats_memory">Memory %1$.1f / %2$.1f GB</string>
+    <string name="stats_memory_mb">Memory %1$d / %2$d MB</string>
     <string name="stats_storage">Storage %1$s free</string>
+    <string name="stats_state">Stats: %1$s</string>
+    <string name="stats_hint">Shows CPU, memory and free storage under the clock on the home screen. MB or GB sets how memory is written.</string>
     <string name="storage_gb_whole">%1$.0f GB</string>
     <string name="storage_gb_decimal">%1$.1f GB</string>
     <string name="dream_name">Clock</string>

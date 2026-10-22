@@ -21,8 +21,11 @@
     <string name="date_format">EEEE d \'de\' MMMM</string>
     <string name="date_format_home">EEEE\nd \'de\' MMMM</string>
     <string name="stats_cpu">CPU %1$d%%</string>
-    <string name="stats_memory">Memoria %1$d / %2$d MB</string>
+    <string name="stats_memory">Memoria %1$.1f / %2$.1f GB</string>
+    <string name="stats_memory_mb">Memoria %1$d / %2$d MB</string>
     <string name="stats_storage">Almacenamiento %1$s libre</string>
+    <string name="stats_state">Estadísticas: %1$s</string>
+    <string name="stats_hint">Muestra CPU, memoria y almacenamiento libre debajo del reloj en la pantalla de inicio. MB o GB elige cómo se escribe la memoria.</string>
     <string name="dream_name">Reloj</string>
     <string name="launcher_settings">Ajustes del lanzador</string>
     <string name="native_settings">Ajustes del fabricante</string>

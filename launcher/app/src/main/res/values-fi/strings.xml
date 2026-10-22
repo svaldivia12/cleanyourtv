@@ -69,7 +69,8 @@
     <string name="card_state_new_label">Uusi nimi</string>
     <string name="greeting_with_name">%1$s, %2$s</string>
     <string name="stats_cpu">Suoritin %1$d %%</string>
-    <string name="stats_memory">Muisti %1$d / %2$d Mt</string>
+    <string name="stats_memory">Muisti %1$.1f / %2$.1f Gt</string>
+    <string name="stats_memory_mb">Muisti %1$d / %2$d Mt</string>
     <string name="stats_storage">Tallennustilaa vapaana %1$s</string>
     <string name="reorder">Järjestä sovellukset</string>
     <string name="tile_move">Siirrä</string>
