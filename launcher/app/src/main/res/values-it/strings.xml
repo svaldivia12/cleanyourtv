@@ -37,7 +37,8 @@
     <string name="shamsi_month_bahman">Bahman</string>
     <string name="shamsi_month_esfand">Esfand</string>
     <string name="stats_cpu">CPU %1$d%%</string>
-    <string name="stats_memory">Memoria: %1$d / %2$d MB</string>
+    <string name="stats_memory">Memoria: %1$.1f / %2$.1f GB</string>
+    <string name="stats_memory_mb">Memoria: %1$d / %2$d MB</string>
     <string name="stats_storage">Spazio: %1$s liberi</string>
     <string name="storage_gb_whole">%1$.0f GB</string>
     <string name="storage_gb_decimal">%1$.1f GB</string>

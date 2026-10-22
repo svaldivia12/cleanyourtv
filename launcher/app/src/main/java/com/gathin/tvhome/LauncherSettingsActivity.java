@@ -35,6 +35,10 @@ public final class LauncherSettingsActivity extends Activity {
     private TextView wallpaperChoice;
     private TextView animationsChoice;
     private TextView advancedChoice;
+    private TextView statsChoice;
+    private TextView statsHint;
+    private TextView statsMemoryMb;
+    private TextView statsMemoryGb;
     private TextView followThemeChoice;
     private TextView openOnStartChoice;
     private int columns;
@@ -42,6 +46,8 @@ public final class LauncherSettingsActivity extends Activity {
     private int dockOpacity;
     private boolean animations;
     private boolean advancedEffects;
+    private boolean showStats;
+    private boolean statsMemoryMbUnit;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -60,6 +66,8 @@ public final class LauncherSettingsActivity extends Activity {
         dockOpacity = config.dockOpacity;
         animations = config.animations;
         advancedEffects = config.animations && config.advancedEffects;
+        showStats = config.showStats;
+        statsMemoryMbUnit = config.statsMemoryMb;
 
         int[] ids = {R.id.columns4, R.id.columns5, R.id.columns6, R.id.columns7};
         for (int i = 0; i < ids.length; i++) {
@@ -130,6 +138,18 @@ public final class LauncherSettingsActivity extends Activity {
                         .show();
             }
         });
+        statsChoice = findViewById(R.id.statsChoice);
+        statsHint = findViewById(R.id.statsHint);
+        statsMemoryMb = findViewById(R.id.statsMemoryMb);
+        statsMemoryGb = findViewById(R.id.statsMemoryGb);
+        statsChoice.setOnClickListener(v -> {
+            showStats = !showStats;
+            choices.edit().putBoolean(Config.SHOW_STATS_KEY, showStats).apply();
+            changed();
+            refresh();
+        });
+        statsMemoryMb.setOnClickListener(v -> setMemoryUnit(true));
+        statsMemoryGb.setOnClickListener(v -> setMemoryUnit(false));
         openOnStartChoice = findViewById(R.id.openOnStartChoice);
         if (config.openOnStartChoice) {
             openOnStartChoice.setVisibility(View.VISIBLE);
@@ -140,13 +160,16 @@ public final class LauncherSettingsActivity extends Activity {
             if (!hasOnTvChoices()) return;
             choices.edit().remove("columns").remove(Config.ROWS_BELOW_DOCK_KEY).remove("animations")
                     .remove("advanced_effects").remove(Config.WALLPAPER_CHOICE_KEY)
-                    .remove(Config.DOCK_OPACITY_KEY).remove(OpenOnStart.KEY).commit();
+                    .remove(Config.DOCK_OPACITY_KEY).remove(OpenOnStart.KEY)
+                    .remove(Config.SHOW_STATS_KEY).remove(Config.STATS_MEMORY_UNIT_KEY).commit();
             Config current = Config.load(this);
             columns = current.columns;
             rowsBelowDock = current.rowsBelowDock;
             dockOpacity = current.dockOpacity;
             animations = current.animations;
             advancedEffects = current.animations && current.advancedEffects;
+            showStats = current.showStats;
+            statsMemoryMbUnit = current.statsMemoryMb;
             changed();
             refresh();
         });
@@ -276,6 +299,14 @@ public final class LauncherSettingsActivity extends Activity {
         refresh();
     }
 
+    private void setMemoryUnit(boolean mb) {
+        if (statsMemoryMbUnit == mb) return;
+        statsMemoryMbUnit = mb;
+        choices.edit().putString(Config.STATS_MEMORY_UNIT_KEY, mb ? "mb" : "gb").apply();
+        changed();
+        refresh();
+    }
+
     private void refresh() {
         for (int i = 0; i < columnChoices.length; i++) {
             columnChoices[i].setSelected(columns == i + 4);
@@ -292,6 +323,17 @@ public final class LauncherSettingsActivity extends Activity {
                 getString(advancedEffects ? R.string.on : R.string.off)));
         advancedChoice.setEnabled(animations);
         advancedChoice.setAlpha(animations ? 1f : 0.5f);
+        statsChoice.setText(getString(R.string.stats_state,
+                getString(showStats ? R.string.on : R.string.off)));
+        float unitAlpha = showStats ? 1f : 0.5f;
+        statsMemoryMb.setAlpha(unitAlpha);
+        statsMemoryGb.setAlpha(unitAlpha);
+        statsMemoryMb.setEnabled(showStats);
+        statsMemoryGb.setEnabled(showStats);
+        statsMemoryMb.setSelected(statsMemoryMbUnit);
+        statsMemoryGb.setSelected(!statsMemoryMbUnit);
+        // Keep the hint readable; dim slightly when stats are off so the row still reads as one control.
+        statsHint.setAlpha(showStats ? 1f : 0.7f);
         String wallpaperCurrent = choices.getString(Config.WALLPAPER_CHOICE_KEY, null);
         wallpaperChoice.setText(getString(R.string.wallpaper_state,
                 "none".equals(wallpaperCurrent) ? getString(R.string.wallpaper_none)
@@ -305,7 +347,9 @@ public final class LauncherSettingsActivity extends Activity {
         return choices.contains("columns") || choices.contains(Config.ROWS_BELOW_DOCK_KEY)
                 || choices.contains("animations") || choices.contains("advanced_effects")
                 || choices.contains(Config.WALLPAPER_CHOICE_KEY) || choices.contains(Config.DOCK_OPACITY_KEY)
-                || choices.contains(OpenOnStart.KEY);
+                || choices.contains(OpenOnStart.KEY)
+                || choices.contains(Config.SHOW_STATS_KEY)
+                || choices.contains(Config.STATS_MEMORY_UNIT_KEY);
     }
 
     private void open(Intent intent) {
