@@ -37,7 +37,8 @@
     <string name="shamsi_month_bahman">בהמן</string>
     <string name="shamsi_month_esfand">אספנד</string>
     <string name="stats_cpu">מעבד %1$d%%</string>
-    <string name="stats_memory">זיכרון %1$d / %2$d MB</string>
+    <string name="stats_memory">זיכרון %1$.1f / %2$.1f GB</string>
+    <string name="stats_memory_mb">זיכרון %1$d / %2$d MB</string>
     <string name="stats_storage">אחסון %1$s פנוי</string>
     <string name="storage_gb_whole">%1$.0f GB</string>
     <string name="storage_gb_decimal">%1$.1f GB</string>

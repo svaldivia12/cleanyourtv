@@ -208,6 +208,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private final Runnable turnTick = this::updatePanel;
     /** config.xml show_stats, overridable by a theme. Off: the line is gone and nothing is read. */
     private boolean showStats;
+    /** Stats memory as whole MB (true) or GB with one decimal (false). */
+    private boolean statsMemoryMb;
     /** config.xml inputs_connected_only: the Inputs menu lists only connected inputs, the rest behind "More inputs". */
     private boolean inputsConnectedOnly;
     /** config.xml inputs_cec_state_only: only CEC device rows show a connection state, bare HDMI ports none. */
@@ -581,6 +583,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // The rotation runs on the clock that never jumps: setting the TV's time must not stall or stretch a turn.
         rotationStart = SystemClock.elapsedRealtime();
         showStats = cfg.showStats;
+        statsMemoryMb = cfg.statsMemoryMb;
         inputsConnectedOnly = cfg.inputsConnectedOnly;
         inputsCecStateOnly = cfg.inputsCecStateOnly;
         shamsi = cfg.shamsiDate;
@@ -2281,7 +2284,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (!showStats) stats.setVisibility(View.GONE);
     }
 
-    /** One quiet line, e.g. "CPU 8%  ·  Memory 430 MB free  ·  Storage 3.1 GB free". Runs off the main thread. */
+    /** One quiet line, e.g. "CPU 8%  ·  Memory 2.3 / 3.8 GB  ·  Storage 3.1 GB free". Runs off the main thread. */
     private static void appendStat(StringBuilder line, String part) {
         if (line.length() > 0) line.append("  ·  ");
         line.append(part);
@@ -2302,8 +2305,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // showing a dash that never fills in.
         StringBuilder line = new StringBuilder();
         if (cpu >= 0) line.append(getString(R.string.stats_cpu, cpu));
-        long[] mem = memUsedOfTotalMb();
-        if (mem != null) appendStat(line, getString(R.string.stats_memory, mem[0], mem[1]));
+        if (statsMemoryMb) {
+            long[] mem = memUsedOfTotalMb();
+            if (mem != null) appendStat(line, getString(R.string.stats_memory_mb, mem[0], mem[1]));
+        } else {
+            double[] mem = memUsedOfTotalGb();
+            if (mem != null) appendStat(line, getString(R.string.stats_memory, mem[0], mem[1]));
+        }
         String free = formatGb(getResources(), Environment.getDataDirectory().getFreeSpace());
         if (!free.isEmpty()) appendStat(line, getString(R.string.stats_storage, free));
         return StatsText.forLocale(line.toString(), getResources().getConfiguration().getLocales().get(0));
@@ -2399,6 +2407,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             return null;
         }
         return MemInfo.usedOfTotalMb(lines);
+    }
+
+    /** RAM usage as {used, total} in GB from the same MemInfo figure, e.g. "2.3 / 3.8 GB". Null when unread. */
+    private double[] memUsedOfTotalGb() {
+        long[] mb = memUsedOfTotalMb();
+        if (mb == null) return null;
+        return new double[]{mb[0] / 1024.0, mb[1] / 1024.0};
     }
 
     private static String readFirstLine(String path) {
