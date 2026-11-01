@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cleanyourtv htop plot</title>
+<style>
+  :root {
+    --bg: #f4f4f1;
+    --fg: #1a1a1a;
+    --muted: #5a5a5a;
+    --line: #c8c8c0;
+    --accent: #0b6e4f;
+    --plot: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 15px/1.45 "Segoe UI", system-ui, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+  }
+  header {
+    padding: 1.25rem 1.5rem 0.75rem;
+    border-bottom: 1px solid var(--line);
+  }
+  h1 {
+    margin: 0 0 0.25rem;
+    font-size: 1.25rem;
+    font-weight: 650;
+  }
+  header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 1rem 1.5rem;
+    align-items: end;
+  }
+  .name-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  select, input[type="file"] {
+    font: inherit;
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--fg);
+  }
+  select {
+    min-width: 14rem;
+    padding: 0.4rem 0.55rem;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--plot);
+  }
+  #procHint {
+    margin: 0;
+    max-width: 22rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+    text-transform: none;
+    letter-spacing: normal;
+    word-break: break-all;
+    min-height: 1.2em;
+  }
+  .stage {
+    margin: 0 1.5rem 1.5rem;
+    padding: 1rem;
+    background: var(--plot);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 420px;
+  }
+  #status {
+    margin: 0 1.5rem 1rem;
+    color: var(--muted);
+    font-size: 0.9rem;
+    min-height: 1.3em;
+  }
+  #status.error { color: #8b1a1a; }
+</style>
+</head>
+<body>
+<header>
+  <h1>cleanyourtv htop plot</h1>
+  <p>Load a TSV from <code>tools/htop.py --record</code>, then pick a name and a column.</p>
+</header>
+
+<div class="controls">
+  <label>Log file
+    <input id="file" type="file" accept=".tsv,.txt,text/plain">
+  </label>
+  <div class="name-field">
+    <label>Name
+      <select id="proc" disabled></select>
+    </label>
+    <p id="procHint"></p>
+  </div>
+  <label>Column
+    <select id="col" disabled>
+      <option value="cpu">cpu (%)</option>
+      <option value="mem">mem (%)</option>
+      <option value="res_mb">res (MB)</option>
+    </select>
+  </label>
+</div>
+
+<p id="status">No file loaded.</p>
+
+<div class="stage">
+  <canvas id="plot" width="1000" height="420"></canvas>
+</div>
+
+<script>
+(function () {
+  const fileInput = document.getElementById("file");
+  const procSelect = document.getElementById("proc");
+  const procHint = document.getElementById("procHint");
+  const colSelect = document.getElementById("col");
+  const status = document.getElementById("status");
+  const canvas = document.getElementById("plot");
+  const ctx = canvas.getContext("2d");
+
+  /** @type {{t:number, proc:string, name:string, cpu:number, mem:number, res_mb:number}[]} */
+  let rows = [];
+  /** @type {Map<string, string>} proc → name */
+  let nameByProc = new Map();
+
+  const COL_LABEL = {
+    cpu: "CPU %",
+    mem: "MEM %",
+    res_mb: "RES (MB)",
+  };
+
+  function setStatus(msg, isError) {
+    status.textContent = msg;
+    status.classList.toggle("error", !!isError);
+  }
+
+  function parseTsv(text) {
+    const out = [];
+    let cols = null;
+    for (const raw of text.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line || line.startsWith("#")) continue;
+      if (!cols) {
+        if (line.startsWith("t\t")) {
+          cols = line.split("\t");
+          continue;
+        }
+        throw new Error("missing column header (expected: t proc …)");
+      }
+      const parts = line.split("\t");
+      if (parts.length < cols.length) continue;
+      const row = {};
+      for (let i = 0; i < cols.length; i++) row[cols[i]] = parts[i];
+      const t = Number(row.t);
+      const proc = row.proc;
+      if (!Number.isFinite(t) || !proc) continue;
+      let res_mb;
+      if (row.res_mb != null) {
+        res_mb = Number(row.res_mb);
+      } else if (row.res_kb != null) {
+        res_mb = Number(row.res_kb) / 1024;
+      } else {
+        res_mb = 0;
+      }
+      const cpu = Number(row.cpu);
+      const mem = Number(row.mem);
+      out.push({
+        t,
+        proc,
+        name: (row.name || proc).trim() || proc,
+        cpu: Number.isFinite(cpu) ? cpu : 0,
+        mem: Number.isFinite(mem) ? mem : 0,
+        res_mb: Number.isFinite(res_mb) ? res_mb : 0,
+      });
+    }
+    if (!out.length) throw new Error("no data rows found");
+    return out;
+  }
+
+  function uniqueProcs(data) {
+    nameByProc = new Map();
+    for (const r of data) {
+      if (!nameByProc.has(r.proc)) nameByProc.set(r.proc, r.name);
+    }
+    return [...nameByProc.keys()].sort((a, b) => {
+      const na = nameByProc.get(a);
+      const nb = nameByProc.get(b);
+      return na.localeCompare(nb) || a.localeCompare(b);
+    });
+  }
+
+  function nameCounts(procs) {
+    const counts = new Map();
+    for (const p of procs) {
+      const n = nameByProc.get(p);
+      counts.set(n, (counts.get(n) || 0) + 1);
+    }
+    return counts;
+  }
+
+  function seriesFor(proc, col) {
+    const stamps = [...new Set(rows.map((r) => r.t))].sort((a, b) => a - b);
+    const byT = new Map();
+    for (const r of rows) {
+      if (r.proc === proc) byT.set(r.t, r[col]);
+    }
+    const points = [];
+    for (const t of stamps) {
+      if (byT.has(t)) points.push({ t, y: byT.get(t) });
+      else if (points.length && points[points.length - 1] !== null) points.push(null);
+    }
+    while (points.length && points[points.length - 1] === null) points.pop();
+    return points;
+  }
+
+  function formatTime(t) {
+    const d = new Date(t * 1000);
+    return d.toLocaleTimeString(undefined, { hour12: false });
+  }
+
+  function niceMax(v) {
+    if (v <= 0) return 1;
+    const pow = Math.pow(10, Math.floor(Math.log10(v)));
+    const n = v / pow;
+    const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+    return step * pow;
+  }
+
+  function updateProcHint() {
+    const proc = procSelect.value;
+    procHint.textContent = proc || "";
+  }
+
+  function draw() {
+    const proc = procSelect.value;
+    const col = colSelect.value;
+    const name = nameByProc.get(proc) || proc;
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = canvas.clientWidth || 1000;
+    const cssH = canvas.clientHeight || 420;
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    if (!proc || !rows.length) {
+      ctx.fillStyle = "#888";
+      ctx.font = "14px sans-serif";
+      ctx.fillText("Load a log file to plot.", 24, 40);
+      return;
+    }
+
+    const points = seriesFor(proc, col);
+    const values = points.filter((p) => p !== null).map((p) => p.y);
+    if (!values.length) {
+      ctx.fillStyle = "#888";
+      ctx.font = "14px sans-serif";
+      ctx.fillText("No samples for this process.", 24, 40);
+      return;
+    }
+
+    const times = points.filter((p) => p !== null).map((p) => p.t);
+    const tMin = Math.min(...times);
+    const tMax = Math.max(...times);
+    const yMax = niceMax(Math.max(...values) * 1.05);
+    const pad = { l: 64, r: 20, t: 36, b: 44 };
+    const w = cssW - pad.l - pad.r;
+    const h = cssH - pad.t - pad.b;
+    const xOf = (t) => pad.l + (tMax === tMin ? w / 2 : ((t - tMin) / (tMax - tMin)) * w);
+    const yOf = (y) => pad.t + h - (y / yMax) * h;
+
+    ctx.strokeStyle = "#e0e0d8";
+    ctx.lineWidth = 1;
+    ctx.fillStyle = "#666";
+    ctx.font = "12px sans-serif";
+    const yTicks = 5;
+    for (let i = 0; i <= yTicks; i++) {
+      const yv = (yMax * i) / yTicks;
+      const y = yOf(yv);
+      ctx.beginPath();
+      ctx.moveTo(pad.l, y);
+      ctx.lineTo(pad.l + w, y);
+      ctx.stroke();
+      const label = col === "res_mb"
+        ? (yv >= 100 ? String(Math.round(yv)) : yv.toFixed(1))
+        : yv.toFixed(1);
+      ctx.fillText(label, 8, y + 4);
+    }
+
+    const xTicks = Math.min(6, Math.max(2, times.length));
+    for (let i = 0; i < xTicks; i++) {
+      const t = tMin + ((tMax - tMin) * i) / (xTicks - 1 || 1);
+      const x = xOf(t);
+      ctx.beginPath();
+      ctx.moveTo(x, pad.t);
+      ctx.lineTo(x, pad.t + h);
+      ctx.stroke();
+      const label = formatTime(t);
+      ctx.fillText(label, x - ctx.measureText(label).width / 2, pad.t + h + 20);
+    }
+
+    ctx.strokeStyle = "#333";
+    ctx.beginPath();
+    ctx.moveTo(pad.l, pad.t);
+    ctx.lineTo(pad.l, pad.t + h);
+    ctx.lineTo(pad.l + w, pad.t + h);
+    ctx.stroke();
+
+    ctx.strokeStyle = "#0b6e4f";
+    ctx.lineWidth = 2;
+    ctx.lineJoin = "round";
+    let open = false;
+    ctx.beginPath();
+    for (const p of points) {
+      if (p === null) {
+        open = false;
+        continue;
+      }
+      const x = xOf(p.t);
+      const y = yOf(p.y);
+      if (!open) {
+        ctx.moveTo(x, y);
+        open = true;
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+    ctx.stroke();
+
+    ctx.fillStyle = "#0b6e4f";
+    for (const p of points) {
+      if (p === null) continue;
+      ctx.beginPath();
+      ctx.arc(xOf(p.t), yOf(p.y), 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = "#1a1a1a";
+    ctx.font = "13px sans-serif";
+    ctx.fillText(`${name}  —  ${COL_LABEL[col] || col}`, pad.l, 22);
+  }
+
+  function refreshControls() {
+    const procs = uniqueProcs(rows);
+    const counts = nameCounts(procs);
+    procSelect.innerHTML = "";
+    for (const p of procs) {
+      const opt = document.createElement("option");
+      opt.value = p;
+      const n = nameByProc.get(p);
+      opt.textContent = counts.get(n) > 1 ? `${n} (${p})` : n;
+      procSelect.appendChild(opt);
+    }
+    procSelect.disabled = !procs.length;
+    colSelect.disabled = !procs.length;
+    updateProcHint();
+    if (procs.length) {
+      setStatus(`${rows.length} samples, ${procs.length} processes.`);
+    }
+    draw();
+  }
+
+  fileInput.addEventListener("change", () => {
+    const f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        rows = parseTsv(String(reader.result || ""));
+        refreshControls();
+      } catch (e) {
+        rows = [];
+        nameByProc = new Map();
+        procSelect.innerHTML = "";
+        procSelect.disabled = true;
+        colSelect.disabled = true;
+        procHint.textContent = "";
+        setStatus(e.message || String(e), true);
+        draw();
+      }
+    };
+    reader.onerror = () => setStatus("could not read file", true);
+    reader.readAsText(f);
+  });
+
+  procSelect.addEventListener("change", () => {
+    updateProcHint();
+    draw();
+  });
+  colSelect.addEventListener("change", draw);
+  window.addEventListener("resize", draw);
+  draw();
+})();
+</script>
+</body>
+</html>
